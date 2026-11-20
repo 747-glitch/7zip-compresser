@@ -32,7 +32,7 @@ This tool runs a WebAssembly build of the 7-Zip command-line engine (`7z-wasm`) 
 ## Running Locally
 
 Running Locally supported.
-Not offline yet
+Note: Offline Not Supported
 
 ---
 
