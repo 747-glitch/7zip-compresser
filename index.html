@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local .7z Compressor (No Upload)</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #222222;
+      --muted: #555555;
+      --border: #888888;
+      --input-bg: #ffffff;
+      --input-border: #bbbbbb;
+      --suffix-bg: #eeeeee;
+      --divider: #e0e0e0;
+      --code-bg: #f4f4f4;
+      --btn-bg: #f0f0f0;
+      --btn-hover: #e2e2e2;
+      --badge-green-bg: #e6f4ea;
+      --badge-green-text: #137333;
+      --badge-gray-bg: #f1f3f4;
+      --badge-gray-text: #444444;
+    }
+
+    html[data-theme="dark"] {
+      --bg: #121212;
+      --text: #e4e4e7;
+      --muted: #a1a1aa;
+      --border: #52525b;
+      --input-bg: #1e1e22;
+      --input-border: #3f3f46;
+      --suffix-bg: #27272a;
+      --divider: #27272a;
+      --code-bg: #27272a;
+      --btn-bg: #27272a;
+      --btn-hover: #3f3f46;
+      --badge-green-bg: #132a1c;
+      --badge-green-text: #81c995;
+      --badge-gray-bg: #27272a;
+      --badge-gray-text: #a1a1aa;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 540px;
+      margin: 2.5rem auto;
+      padding: 0 1rem;
+      background-color: var(--bg);
+      color: var(--text);
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .header h2 { margin: 0; font-size: 1.35rem; }
+
+    #themeToggle {
+      margin: 0;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.85rem;
+      background: var(--btn-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #themeToggle:hover { background: var(--btn-hover); }
+
+    .box {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-width: 340px;
+      margin: 1.25rem auto 0;
+      text-align: left;
+    }
+
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .filename-wrapper { display: flex; align-items: center; }
+
+    .filename-wrapper input {
+      flex: 1;
+      padding: 0.45rem 0.6rem;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 4px 0 0 4px;
+      font-size: 0.95rem;
+    }
+
+    .filename-wrapper span {
+      padding: 0.45rem 0.6rem;
+      background: var(--suffix-bg);
+      border: 1px solid var(--input-border);
+      border-left: none;
+      border-radius: 0 4px 4px 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    select {
+      padding: 0.45rem 0.6rem;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+
+    #compressBtn {
+      margin-top: 1.25rem;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      background: var(--btn-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #compressBtn:hover:not(:disabled) { background: var(--btn-hover); }
+    #compressBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    #progressContainer { display: none; margin-top: 1.5rem; }
+    progress { width: 100%; height: 20px; border-radius: 6px; }
+    #status { margin-top: 0.75rem; color: var(--text); font-size: 0.95rem; font-weight: 500; }
+
+    #sizeStats {
+      display: none;
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      background: var(--code-bg);
+      color: var(--text);
+    }
+
+    .badge {
+      display: inline-block;
+      margin-left: 0.4rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.82rem;
+    }
+
+    .badge-saved { background: var(--badge-green-bg); color: var(--badge-green-text); }
+    .badge-neutral { background: var(--badge-gray-bg); color: var(--badge-gray-text); }
+
+    .breakdown {
+      margin-top: 2.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--divider);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .breakdown h3 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--text); }
+    .breakdown ul { padding-left: 1.25rem; margin: 0; }
+    .breakdown li { margin-bottom: 0.4rem; }
+    code { background: var(--code-bg); color: var(--text); padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>Compress to .7z</h2>
+    <button id="themeToggle" type="button" onclick="toggleTheme()">Dark Mode</button>
+  </div>
+
+  <div class="box">
+    <input type="file" id="fileInput" multiple onchange="updateSelectedSize()" />
+
+    <div class="controls">
+      <div class="control-row">
+        <label for="archiveName">Archive Filename</label>
+        <div class="filename-wrapper">
+          <input type="text" id="archiveName" value="archive" placeholder="archive" />
+          <span>.7z</span>
+        </div>
+      </div>
+
+      <div class="control-row">
+        <label for="compressionLevel">Compression Level</label>
+        <select id="compressionLevel">
+          <option value="0">0 - Store (No compression, fastest)</option>
+          <option value="1">1 - Fastest</option>
+          <option value="3">3 - Fast</option>
+          <option value="5" selected>5 - Normal (Recommended)</option>
+          <option value="7">7 - Maximum</option>
+          <option value="9">9 - Ultra (Smallest size, slowest)</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="compressBtn" type="button" onclick="startCompression()">Compress to .7z</button>
+
+    <div id="progressContainer">
+      <progress id="progressBar" value="0" max="100"></progress>
+    </div>
+    <div id="status">Files stay on your device. Nothing is uploaded.</div>
+    <div id="sizeStats"></div>
+  </div>
+
+  <div class="breakdown">
+    <h3>How the Progress Bar Breakdown Works</h3>
+    <ul>
+      <li><strong>0% – 5%:</strong> Initializes the engine and fetches the <code>7zz.wasm</code> binary.</li>
+      <li><strong>5% – 20%:</strong> Reads your selected files into virtual WebAssembly memory.</li>
+      <li><strong>20% – 98%:</strong> Passes the <code>-bsp1</code> flag to 7-Zip so it tracks completion progress and updates the <code>&lt;progress&gt;</code> bar.</li>
+      <li><strong>100%:</strong> Triggers the local browser download of your <code>.7z</code> file and frees memory.</li>
+    </ul>
+  </div>
+
+  <script>
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      var btn = document.getElementById("themeToggle");
+      if (btn) {
+        btn.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+      }
+      try {
+        localStorage.setItem("theme", theme);
+      } catch (e) {}
+    }
+
+    function toggleTheme() {
+      var current = document.documentElement.getAttribute("data-theme");
+      applyTheme(current === "dark" ? "light" : "dark");
+    }
+
+    (function () {
+      var saved = null;
+      try {
+        saved = localStorage.getItem("theme");
+      } catch (e) {}
+      var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      applyTheme(saved || (prefersDark ? "dark" : "light"));
+    })();
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      var units = ["B", "KB", "MB", "GB"];
+      var i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + " " + units[i];
+    }
+
+    function updateSelectedSize() {
+      var fileInput = document.getElementById("fileInput");
+      var sizeStats = document.getElementById("sizeStats");
+      var files = Array.from(fileInput.files || []);
+      if (files.length) {
+        var totalBytes = files.reduce(function (sum, f) { return sum + f.size; }, 0);
+        sizeStats.style.display = "block";
+        sizeStats.innerHTML = "Selected (" + files.length + " file" + (files.length > 1 ? "s" : "") + "): <strong>" + formatBytes(totalBytes) + "</strong>";
+      } else {
+        sizeStats.style.display = "none";
+      }
+    }
+
+    function tick() {
+      return new Promise(function (r) { setTimeout(r, 30); });
+    }
+
+    async function startCompression() {
+      var fileInput = document.getElementById("fileInput");
+      var archiveNameInput = document.getElementById("archiveName");
+      var compressionLevelSelect = document.getElementById("compressionLevel");
+      var compressBtn = document.getElementById("compressBtn");
+      var progressContainer = document.getElementById("progressContainer");
+      var progressBar = document.getElementById("progressBar");
+      var status = document.getElementById("status");
+      var sizeStats = document.getElementById("sizeStats");
+
+      var files = Array.from(fileInput.files || []);
+      if (!files.length) {
+        status.textContent = "Select at least one file first.";
+        return;
+      }
+
+      var originalBytes = files.reduce(function (sum, f) { return sum + f.size; }, 0);
+      var baseName = archiveNameInput.value.trim().replace(/\.7z$/i, "");
+      baseName = baseName.replace(/[^a-zA-Z0-9._-]/g, "_") || "archive";
+      var finalFilename = baseName + ".7z";
+      var level = compressionLevelSelect.value;
+
+      var startTime = performance.now();
+      compressBtn.disabled = true;
+      progressContainer.style.display = "block";
+      progressBar.value = 5;
+      status.textContent = "Loading 7-Zip WebAssembly engine...";
+      await tick();
+
+      try {
+        var mod = await import("https://cdn.jsdelivr.net/npm/7z-wasm@1.2.0/7zz.es6.js");
+        var SevenZip = mod.default;
+
+        var sevenZip = await SevenZip({
+          locateFile: function (file) {
+            return "https://cdn.jsdelivr.net/npm/7z-wasm@1.2.0/" + file;
+          },
+          print: function (text) {
+            var match = String(text).match(/(\d+)%/);
+            if (match && match[1]) {
+              var rawPct = parseInt(match[1], 10);
+              if (!isNaN(rawPct)) {
+                progressBar.value = 20 + Math.round(rawPct * 0.78);
+                status.textContent = "Compressing to .7z... " + rawPct + "%";
+              }
+            }
+          }
+        });
+
+        sevenZip.FS.mkdir("/in");
+        sevenZip.FS.mkdir("/out");
+
+        for (var i = 0; i < files.length; i++) {
+          var file = files[i];
+          progressBar.value = 5 + Math.round(((i + 1) / files.length) * 15);
+          status.textContent = "Reading file " + (i + 1) + " of " + files.length + "...";
+          await tick();
+
+          var buffer = new Uint8Array(await file.arrayBuffer());
+          sevenZip.FS.writeFile("/in/" + file.name, buffer);
+        }
+
+        progressBar.value = 25;
+        status.textContent = "Compressing to .7z (please wait)...";
+        await tick();
+
+        var args = ["a", "-t7z", "-mx=" + level, "-bsp1", "/out/archive.7z", "/in/*"];
+        sevenZip.callMain(args);
+
+        var archiveData = sevenZip.FS.readFile("/out/archive.7z");
+        var elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+        var compressedBytes = archiveData.byteLength;
+
+        progressBar.value = 100;
+        status.textContent = "Done in " + elapsed + "s! Saved as " + finalFilename + ".";
+
+        var diffPct = originalBytes > 0
+          ? (((originalBytes - compressedBytes) / originalBytes) * 100).toFixed(1)
+          : 0;
+
+        var badgeHtml = diffPct > 0
+          ? '<span class="badge badge-saved">-' + diffPct + '% saved</span>'
+          : '<span class="badge badge-neutral">' + (diffPct == 0 ? "0%" : "+" + Math.abs(diffPct) + "%") + ' (already compressed)</span>';
+
+        sizeStats.style.display = "block";
+        sizeStats.innerHTML = "Before: <strong>" + formatBytes(originalBytes) + "</strong> &rarr; After: <strong>" + formatBytes(compressedBytes) + "</strong> " + badgeHtml;
+
+        var blob = new Blob([archiveData], { type: "application/x-7z-compressed" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = finalFilename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+        status.textContent = "Error: " + (err && err.message ? err.message : String(err));
+      } finally {
+        compressBtn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
