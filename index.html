@@ -5,30 +5,229 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Local .7z Compressor (No Upload)</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 540px; margin: 3rem auto; padding: 0 1rem; color: #222; }
-    .box { border: 2px dashed #888; border-radius: 8px; padding: 2rem; text-align: center; }
-    button { margin-top: 1rem; padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    :root {
+      --bg: #ffffff;
+      --text: #222222;
+      --muted: #555555;
+      --border: #888888;
+      --input-bg: #ffffff;
+      --input-border: #bbbbbb;
+      --suffix-bg: #eeeeee;
+      --divider: #e0e0e0;
+      --code-bg: #f4f4f4;
+      --btn-bg: #f0f0f0;
+      --btn-hover: #e2e2e2;
+      --badge-green-bg: #e6f4ea;
+      --badge-green-text: #137333;
+      --badge-gray-bg: #f1f3f4;
+      --badge-gray-text: #444444;
+    }
+
+    [data-theme="dark"] {
+      --bg: #121212;
+      --text: #e4e4e7;
+      --muted: #a1a1aa;
+      --border: #52525b;
+      --input-bg: #1e1e22;
+      --input-border: #3f3f46;
+      --suffix-bg: #27272a;
+      --divider: #27272a;
+      --code-bg: #27272a;
+      --btn-bg: #27272a;
+      --btn-hover: #3f3f46;
+      --badge-green-bg: #132a1c;
+      --badge-green-text: #81c995;
+      --badge-gray-bg: #27272a;
+      --badge-gray-text: #a1a1aa;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 540px;
+      margin: 2.5rem auto;
+      padding: 0 1rem;
+      background-color: var(--bg);
+      color: var(--text);
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .header h2 { margin: 0; font-size: 1.35rem; }
+
+    #themeToggle {
+      margin: 0;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.85rem;
+      background: var(--btn-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #themeToggle:hover { background: var(--btn-hover); }
+
+    .box {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-width: 340px;
+      margin: 1.25rem auto 0;
+      text-align: left;
+    }
+
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .filename-wrapper { display: flex; align-items: center; }
+
+    .filename-wrapper input {
+      flex: 1;
+      padding: 0.45rem 0.6rem;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 4px 0 0 4px;
+      font-size: 0.95rem;
+    }
+
+    .filename-wrapper span {
+      padding: 0.45rem 0.6rem;
+      background: var(--suffix-bg);
+      border: 1px solid var(--input-border);
+      border-left: none;
+      border-radius: 0 4px 4px 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    select {
+      padding: 0.45rem 0.6rem;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+
+    #compressBtn {
+      margin-top: 1.25rem;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      background: var(--btn-bg);
+      color: var(--text);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #compressBtn:hover:not(:disabled) { background: var(--btn-hover); }
+    #compressBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
     #progressContainer { display: none; margin-top: 1.5rem; }
     progress { width: 100%; height: 20px; border-radius: 6px; }
-    #status { margin-top: 0.75rem; color: #333; font-size: 0.95rem; font-weight: 500; }
-    .breakdown { margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid #e0e0e0; font-size: 0.9rem; line-height: 1.5; color: #444; }
-    .breakdown h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #222; }
+    #status { margin-top: 0.75rem; color: var(--text); font-size: 0.95rem; font-weight: 500; }
+
+    #sizeStats {
+      display: none;
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      background: var(--code-bg);
+      color: var(--text);
+    }
+
+    .badge {
+      display: inline-block;
+      margin-left: 0.4rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.82rem;
+    }
+
+    .badge-saved {
+      background: var(--badge-green-bg);
+      color: var(--badge-green-text);
+    }
+
+    .badge-neutral {
+      background: var(--badge-gray-bg);
+      color: var(--badge-gray-text);
+    }
+
+    .breakdown {
+      margin-top: 2.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--divider);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .breakdown h3 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--text); }
     .breakdown ul { padding-left: 1.25rem; margin: 0; }
     .breakdown li { margin-bottom: 0.4rem; }
-    code { background: #f4f4f4; padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+    code { background: var(--code-bg); color: var(--text); padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
   </style>
 </head>
 <body>
-  <h2>Compress to .7z (100% Browser-Side)</h2>
+  <div class="header">
+    <h2>Compress to .7z</h2>
+    <button id="themeToggle" type="button">Dark Mode</button>
+  </div>
+
   <div class="box">
     <input type="file" id="fileInput" multiple />
-    <br />
-    <button id="compressBtn">Compress to archive.7z</button>
+
+    <div class="controls">
+      <div class="control-row">
+        <label for="archiveName">Archive Filename</label>
+        <div class="filename-wrapper">
+          <input type="text" id="archiveName" value="archive" placeholder="archive" />
+          <span>.7z</span>
+        </div>
+      </div>
+
+      <div class="control-row">
+        <label for="compressionLevel">Compression Level</label>
+        <select id="compressionLevel">
+          <option value="0">0 - Store (No compression, fastest)</option>
+          <option value="1">1 - Fastest</option>
+          <option value="3">3 - Fast</option>
+          <option value="5" selected>5 - Normal (Recommended)</option>
+          <option value="7">7 - Maximum</option>
+          <option value="9">9 - Ultra (Smallest size, slowest)</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="compressBtn">Compress to .7z</button>
 
     <div id="progressContainer">
       <progress id="progressBar" value="0" max="100"></progress>
     </div>
     <div id="status">Files stay on your device. Nothing is uploaded.</div>
+    <div id="sizeStats"></div>
   </div>
 
   <div class="breakdown">
@@ -37,34 +236,72 @@
       <li><strong>0% – 5%:</strong> Initializes the Web Worker and fetches the <code>7zz.wasm</code> binary.</li>
       <li><strong>5% – 20%:</strong> Reads your selected files into virtual WebAssembly memory.</li>
       <li><strong>20% – 98%:</strong> Passes the <code>-bsp1</code> flag to 7-Zip so it prints live completion percentages to <code>stdout</code>, which updates the <code>&lt;progress&gt;</code> bar in real time.</li>
-      <li><strong>100%:</strong> Triggers the local browser download of <code>archive.7z</code> and terminates the worker to free up RAM.</li>
+      <li><strong>100%:</strong> Triggers the local browser download of your <code>.7z</code> file and terminates the worker to free up RAM.</li>
     </ul>
   </div>
 
   <script>
+    // Dark mode initialization & toggle
+    const themeToggle = document.getElementById("themeToggle");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const savedTheme = localStorage.getItem("theme") || (prefersDark ? "dark" : "light");
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      themeToggle.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+      localStorage.setItem("theme", theme);
+    }
+    applyTheme(savedTheme);
+
+    themeToggle.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme");
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+
+    // Format bytes into readable KB/MB/GB
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + " " + units[i];
+    }
+
+    // Compressor logic
     const fileInput = document.getElementById("fileInput");
+    const archiveNameInput = document.getElementById("archiveName");
+    const compressionLevelSelect = document.getElementById("compressionLevel");
     const compressBtn = document.getElementById("compressBtn");
     const progressContainer = document.getElementById("progressContainer");
     const progressBar = document.getElementById("progressBar");
     const status = document.getElementById("status");
+    const sizeStats = document.getElementById("sizeStats");
 
-    // Inline Web Worker so 7-Zip runs in the background without freezing the progress bar
+    // Show initial input file size immediately upon selection
+    fileInput.addEventListener("change", () => {
+      const files = Array.from(fileInput.files);
+      if (files.length) {
+        const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+        sizeStats.style.display = "block";
+        sizeStats.innerHTML = `Selected (${files.length} file${files.length > 1 ? "s" : ""}): <strong>${formatBytes(totalBytes)}</strong>`;
+      } else {
+        sizeStats.style.display = "none";
+      }
+    });
+
     const workerCode = `
       import SevenZip from "https://jsdelivr.net";
 
       self.onmessage = async (e) => {
-        const files = e.data.files;
+        const { files, level } = e.data;
         try {
           self.postMessage({ type: "status", text: "Loading 7-Zip WebAssembly engine...", percent: 5 });
 
           const sevenZip = await SevenZip({
             locateFile: (file) => "https://jsdelivr.net" + file,
-            // Capture 7-Zip stdout to read live compression percentages (e.g., " 42%")
             print: (text) => {
               const match = text.match(/(\\d+)%/);
               if (match) {
                 const rawPct = parseInt(match[1], 10);
-                // Map compression progress from 20% to 98% of the overall bar
                 const scaledPct = 20 + Math.round(rawPct * 0.78);
                 self.postMessage({
                   type: "progress",
@@ -79,74 +316,3 @@
           sevenZip.FS.mkdir("/out");
 
           for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const readPct = 5 + Math.round(((i + 1) / files.length) * 15);
-            self.postMessage({
-              type: "progress",
-              percent: readPct,
-              text: "Reading file " + (i + 1) + " of " + files.length + "..."
-            });
-            const buffer = new Uint8Array(await file.arrayBuffer());
-            sevenZip.FS.writeFile("/in/" + file.name, buffer);
-          }
-
-          self.postMessage({ type: "progress", percent: 20, text: "Compressing to .7z... 0%" });
-
-          // '-bsp1' forces 7-Zip to output percentage progress to stdout
-          sevenZip.callMain(["a", "-t7z", "-mx=5", "-bsp1", "/out/archive.7z", "/in/*"]);
-
-          const archiveData = sevenZip.FS.readFile("/out/archive.7z");
-          self.postMessage({ type: "done", data: archiveData }, [archiveData.buffer]);
-        } catch (err) {
-          self.postMessage({ type: "error", message: err.message || "Compression failed." });
-        }
-      };
-    `;
-
-    const workerBlob = new Blob([workerCode], { type: "application/javascript" });
-    const workerUrl = URL.createObjectURL(workerBlob);
-
-    compressBtn.addEventListener("click", () => {
-      const files = Array.from(fileInput.files);
-      if (!files.length) {
-        status.textContent = "Select at least one file first.";
-        return;
-      }
-
-      compressBtn.disabled = true;
-      progressContainer.style.display = "block";
-      progressBar.value = 0;
-
-      const worker = new Worker(workerUrl, { type: "module" });
-
-      worker.onmessage = (e) => {
-        const msg = e.data;
-        if (msg.type === "status" || msg.type === "progress") {
-          progressBar.value = msg.percent;
-          status.textContent = msg.text;
-        } else if (msg.type === "done") {
-          progressBar.value = 100;
-          status.textContent = `Done! Compressed ${files.length} file(s) locally.`;
-
-          const blob = new Blob([msg.data], { type: "application/x-7z-compressed" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "archive.7z";
-          a.click();
-          URL.revokeObjectURL(url);
-
-          compressBtn.disabled = false;
-          worker.terminate();
-        } else if (msg.type === "error") {
-          status.textContent = "Error: " + msg.message;
-          compressBtn.disabled = false;
-          worker.terminate();
-        }
-      };
-
-      worker.postMessage({ files });
-    });
-  </script>
-</body>
-</html>
