@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local .7z Compressor (No Upload)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 540px; margin: 3rem auto; padding: 0 1rem; }
+    .box { border: 2px dashed #888; border-radius: 8px; padding: 2rem; text-align: center; }
+    button { margin-top: 1rem; padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    #status { margin-top: 1rem; color: #444; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <h2>Compress to .7z (100% Browser-Side)</h2>
+  <div class="box">
+    <input type="file" id="fileInput" multiple />
+    <br />
+    <button id="compressBtn">Compress to archive.7z</button>
+    <div id="status">Files stay on your device. Nothing is uploaded.</div>
+  </div>
+
+  <script type="module">
+    import SevenZip from "https://jsdelivr.net";
+
+    const fileInput = document.getElementById("fileInput");
+    const compressBtn = document.getElementById("compressBtn");
+    const status = document.getElementById("status");
+
+    compressBtn.addEventListener("click", async () => {
+      const files = fileInput.files;
+      if (!files.length) {
+        status.textContent = "Select at least one file first.";
+        return;
+      }
+
+      compressBtn.disabled = true;
+      status.textContent = "Loading 7-Zip WebAssembly engine...";
+
+      try {
+        const sevenZip = await SevenZip({
+          locateFile: (file) => `https://jsdelivr.net{file}`
+        });
+
+        // Create virtual directories in WASM memory
+        sevenZip.FS.mkdir("/in");
+        sevenZip.FS.mkdir("/out");
+
+        status.textContent = "Reading files into local memory...";
+        for (const file of files) {
+          const buffer = new Uint8Array(await file.arrayBuffer());
+          sevenZip.FS.writeFile(`/in/${file.name}`, buffer);
+        }
+
+        status.textContent = "Compressing to .7z...";
+        // 'a' = add, '-t7z' = 7z format, '-mx=5' = normal compression (use -mx=9 for ultra)
+        sevenZip.callMain(["a", "-t7z", "-mx=5", "/out/archive.7z", "/in/*"]);
+
+        // Read result and trigger local browser download
+        const archiveData = sevenZip.FS.readFile("/out/archive.7z");
+        const blob = new Blob([archiveData], { type: "application/x-7z-compressed" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "archive.7z";
+        a.click();
+        URL.revokeObjectURL(url);
+
+        status.textContent = `Done! Compressed ${files.length} file(s) locally.`;
+      } catch (err) {
+        console.error(err);
+        status.textContent = "Compression failed. Check console or try smaller files.";
+      } finally {
+        compressBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
