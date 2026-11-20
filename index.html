@@ -16,6 +16,10 @@
       --secondary: #e2e8f0;
       --secondary-hover: #cbd5e1;
       --drop-bg: #eff6ff;
+      --stats-bg: #f1f5f9;
+      --badge-bg: #dcfce7;
+      --badge-text: #15803d;
+      --bar-done: #008000;
     }
 
     body.dark {
@@ -29,6 +33,10 @@
       --secondary: #334155;
       --secondary-hover: #475569;
       --drop-bg: #172554;
+      --stats-bg: #0f172a;
+      --badge-bg: #14532d;
+      --badge-text: #86efac;
+      --bar-done: #16a34a;
     }
 
     * { box-sizing: border-box; }
@@ -181,27 +189,72 @@
     }
 
     .progress-wrap {
-      margin-top: 16px;
+      margin-top: 18px;
       display: none;
+      text-align: center;
     }
 
     progress {
       width: 100%;
       height: 14px;
       border-radius: 8px;
+      overflow: hidden;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    progress::-webkit-progress-bar {
+      background-color: var(--secondary);
+      border-radius: 8px;
+    }
+
+    progress::-webkit-progress-value {
+      background-color: var(--primary);
+      border-radius: 8px;
+      transition: width 0.15s ease;
+    }
+
+    progress.completed::-webkit-progress-value {
+      background-color: var(--bar-done);
+    }
+
+    progress.completed::-moz-progress-bar {
+      background-color: var(--bar-done);
     }
 
     #statusText {
-      font-size: 0.9rem;
-      margin-top: 6px;
-      font-weight: 500;
+      font-size: 1.05rem;
+      margin-top: 14px;
+      font-weight: 600;
+    }
+
+    .stats-box {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: var(--stats-bg);
+      border-radius: 8px;
+      font-size: 0.96rem;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .stats-badge {
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.92rem;
     }
 
     .privacy-note {
       text-align: center;
       font-size: 0.88rem;
       color: var(--muted);
-      margin-top: 14px;
+      margin-top: 16px;
     }
 
     hr {
@@ -261,6 +314,10 @@
     <div id="progressWrap" class="progress-wrap">
       <progress id="progressBar" value="0" max="100"></progress>
       <div id="statusText">Ready</div>
+      <div id="statsBox" class="stats-box">
+        <span>Before: <strong id="beforeSize">0 B</strong> &rarr; After: <strong id="afterSize">0 B</strong></span>
+        <span id="savedBadge" class="stats-badge">-0.0% saved</span>
+      </div>
     </div>
 
     <p class="privacy-note">Files stay on your device. Nothing is uploaded.</p>
@@ -295,8 +352,11 @@
     const progressWrap = document.getElementById('progressWrap');
     const progressBar = document.getElementById('progressBar');
     const statusText = document.getElementById('statusText');
+    const statsBox = document.getElementById('statsBox');
+    const beforeSizeEl = document.getElementById('beforeSize');
+    const afterSizeEl = document.getElementById('afterSize');
+    const savedBadgeEl = document.getElementById('savedBadge');
 
-    // Store items as { file: File, path: string }
     let selectedItems = [];
     let userEditedName = false;
 
@@ -327,6 +387,8 @@
       archiveNameInput.value = 'archive';
       renderFileList();
       progressWrap.style.display = 'none';
+      statsBox.style.display = 'none';
+      progressBar.classList.remove('completed');
     });
 
     dropzone.addEventListener('dragover', (e) => {
@@ -413,7 +475,6 @@
     function getDefaultArchiveName(items) {
       if (!items || items.length === 0) return 'archive';
 
-      // Check if items are inside a root folder
       const firstPath = items[0].path;
       if (firstPath && firstPath.includes('/')) {
         const rootFolder = firstPath.split('/')[0];
@@ -423,14 +484,12 @@
         }
       }
 
-      // Single file uploaded: strip extension
       if (items.length === 1) {
         const fileName = items[0].file.name;
         const lastDotIndex = fileName.lastIndexOf('.');
         return lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
       }
 
-      // Multiple loose files uploaded
       const firstFileName = items[0].file.name;
       const lastDotIndex = firstFileName.lastIndexOf('.');
       const baseName = lastDotIndex > 0 ? firstFileName.substring(0, lastDotIndex) : firstFileName;
@@ -455,6 +514,14 @@
       }[c]));
     }
 
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
     function ensureDir(FS, dirPath) {
       const parts = dirPath.split('/').filter(Boolean);
       let current = '';
@@ -474,8 +541,11 @@
         return;
       }
 
+      const startTime = performance.now();
       compressBtn.disabled = true;
       progressWrap.style.display = 'block';
+      statsBox.style.display = 'none';
+      progressBar.classList.remove('completed');
       progressBar.value = 2;
       statusText.textContent = 'Initializing 7-Zip engine (0% - 5%)...';
 
@@ -500,9 +570,12 @@
         ensureDir(sevenZip.FS, workDir);
 
         const topLevelTargets = new Set();
+        let totalBeforeBytes = 0;
 
         for (let i = 0; i < selectedItems.length; i++) {
           const { file, path } = selectedItems[i];
+          totalBeforeBytes += file.size;
+
           const cleanPath = path.replace(/^\/+/, '');
           const fullPath = `${workDir}/${cleanPath}`;
           const lastSlash = fullPath.lastIndexOf('/');
@@ -529,7 +602,6 @@
         progressBar.value = 20;
         statusText.textContent = 'Compressing files (20% - 98%)...';
 
-        // Allow UI paint before synchronous WASM execution
         await new Promise(r => setTimeout(r, 30));
 
         sevenZip.callMain([
@@ -544,6 +616,8 @@
         statusText.textContent = 'Preparing download...';
 
         const compressedData = sevenZip.FS.readFile(outputVirtualPath);
+        const totalAfterBytes = compressedData.byteLength;
+
         const blob = new Blob([compressedData], { type: 'application/x-7z-compressed' });
         const url = URL.createObjectURL(blob);
 
@@ -556,8 +630,24 @@
 
         setTimeout(() => URL.revokeObjectURL(url), 5000);
 
+        const elapsedSeconds = ((performance.now() - startTime) / 1000).toFixed(1);
+        const diffPercent = totalBeforeBytes > 0
+          ? ((totalAfterBytes - totalBeforeBytes) / totalBeforeBytes) * 100
+          : 0;
+
         progressBar.value = 100;
-        statusText.textContent = `Done! Downloaded ${archiveFileName} (100%)`;
+        progressBar.classList.add('completed');
+        statusText.textContent = `Done in ${elapsedSeconds}s! Saved as ${archiveFileName}.`;
+
+        beforeSizeEl.textContent = formatBytes(totalBeforeBytes);
+        afterSizeEl.textContent = formatBytes(totalAfterBytes);
+
+        if (diffPercent <= 0) {
+          savedBadgeEl.textContent = `${diffPercent.toFixed(1)}% saved`;
+        } else {
+          savedBadgeEl.textContent = `+${diffPercent.toFixed(1)}% larger`;
+        }
+        statsBox.style.display = 'flex';
       } catch (err) {
         console.error(err);
         statusText.textContent = `Error: ${err.message || 'Compression failed.'}`;
