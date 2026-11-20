@@ -5,10 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Local .7z Compressor (No Upload)</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 540px; margin: 3rem auto; padding: 0 1rem; }
+    body { font-family: system-ui, sans-serif; max-width: 540px; margin: 3rem auto; padding: 0 1rem; color: #222; }
     .box { border: 2px dashed #888; border-radius: 8px; padding: 2rem; text-align: center; }
     button { margin-top: 1rem; padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; }
-    #status { margin-top: 1rem; color: #444; font-size: 0.95rem; }
+    #progressContainer { display: none; margin-top: 1.5rem; }
+    progress { width: 100%; height: 20px; border-radius: 6px; }
+    #status { margin-top: 0.75rem; color: #333; font-size: 0.95rem; font-weight: 500; }
+    .breakdown { margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid #e0e0e0; font-size: 0.9rem; line-height: 1.5; color: #444; }
+    .breakdown h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #222; }
+    .breakdown ul { padding-left: 1.25rem; margin: 0; }
+    .breakdown li { margin-bottom: 0.4rem; }
+    code { background: #f4f4f4; padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
   </style>
 </head>
 <body>
@@ -17,63 +24,128 @@
     <input type="file" id="fileInput" multiple />
     <br />
     <button id="compressBtn">Compress to archive.7z</button>
+
+    <div id="progressContainer">
+      <progress id="progressBar" value="0" max="100"></progress>
+    </div>
     <div id="status">Files stay on your device. Nothing is uploaded.</div>
   </div>
 
-  <script type="module">
-    import SevenZip from "https://jsdelivr.net";
+  <div class="breakdown">
+    <h3>How the Progress Bar Breakdown Works</h3>
+    <ul>
+      <li><strong>0% – 5%:</strong> Initializes the Web Worker and fetches the <code>7zz.wasm</code> binary.</li>
+      <li><strong>5% – 20%:</strong> Reads your selected files into virtual WebAssembly memory.</li>
+      <li><strong>20% – 98%:</strong> Passes the <code>-bsp1</code> flag to 7-Zip so it prints live completion percentages to <code>stdout</code>, which updates the <code>&lt;progress&gt;</code> bar in real time.</li>
+      <li><strong>100%:</strong> Triggers the local browser download of <code>archive.7z</code> and terminates the worker to free up RAM.</li>
+    </ul>
+  </div>
 
+  <script>
     const fileInput = document.getElementById("fileInput");
     const compressBtn = document.getElementById("compressBtn");
+    const progressContainer = document.getElementById("progressContainer");
+    const progressBar = document.getElementById("progressBar");
     const status = document.getElementById("status");
 
-    compressBtn.addEventListener("click", async () => {
-      const files = fileInput.files;
+    // Inline Web Worker so 7-Zip runs in the background without freezing the progress bar
+    const workerCode = `
+      import SevenZip from "https://jsdelivr.net";
+
+      self.onmessage = async (e) => {
+        const files = e.data.files;
+        try {
+          self.postMessage({ type: "status", text: "Loading 7-Zip WebAssembly engine...", percent: 5 });
+
+          const sevenZip = await SevenZip({
+            locateFile: (file) => "https://jsdelivr.net" + file,
+            // Capture 7-Zip stdout to read live compression percentages (e.g., " 42%")
+            print: (text) => {
+              const match = text.match(/(\\d+)%/);
+              if (match) {
+                const rawPct = parseInt(match[1], 10);
+                // Map compression progress from 20% to 98% of the overall bar
+                const scaledPct = 20 + Math.round(rawPct * 0.78);
+                self.postMessage({
+                  type: "progress",
+                  percent: scaledPct,
+                  text: "Compressing to .7z... " + rawPct + "%"
+                });
+              }
+            }
+          });
+
+          sevenZip.FS.mkdir("/in");
+          sevenZip.FS.mkdir("/out");
+
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const readPct = 5 + Math.round(((i + 1) / files.length) * 15);
+            self.postMessage({
+              type: "progress",
+              percent: readPct,
+              text: "Reading file " + (i + 1) + " of " + files.length + "..."
+            });
+            const buffer = new Uint8Array(await file.arrayBuffer());
+            sevenZip.FS.writeFile("/in/" + file.name, buffer);
+          }
+
+          self.postMessage({ type: "progress", percent: 20, text: "Compressing to .7z... 0%" });
+
+          // '-bsp1' forces 7-Zip to output percentage progress to stdout
+          sevenZip.callMain(["a", "-t7z", "-mx=5", "-bsp1", "/out/archive.7z", "/in/*"]);
+
+          const archiveData = sevenZip.FS.readFile("/out/archive.7z");
+          self.postMessage({ type: "done", data: archiveData }, [archiveData.buffer]);
+        } catch (err) {
+          self.postMessage({ type: "error", message: err.message || "Compression failed." });
+        }
+      };
+    `;
+
+    const workerBlob = new Blob([workerCode], { type: "application/javascript" });
+    const workerUrl = URL.createObjectURL(workerBlob);
+
+    compressBtn.addEventListener("click", () => {
+      const files = Array.from(fileInput.files);
       if (!files.length) {
         status.textContent = "Select at least one file first.";
         return;
       }
 
       compressBtn.disabled = true;
-      status.textContent = "Loading 7-Zip WebAssembly engine...";
+      progressContainer.style.display = "block";
+      progressBar.value = 0;
 
-      try {
-        const sevenZip = await SevenZip({
-          locateFile: (file) => `https://jsdelivr.net{file}`
-        });
+      const worker = new Worker(workerUrl, { type: "module" });
 
-        // Create virtual directories in WASM memory
-        sevenZip.FS.mkdir("/in");
-        sevenZip.FS.mkdir("/out");
+      worker.onmessage = (e) => {
+        const msg = e.data;
+        if (msg.type === "status" || msg.type === "progress") {
+          progressBar.value = msg.percent;
+          status.textContent = msg.text;
+        } else if (msg.type === "done") {
+          progressBar.value = 100;
+          status.textContent = `Done! Compressed ${files.length} file(s) locally.`;
 
-        status.textContent = "Reading files into local memory...";
-        for (const file of files) {
-          const buffer = new Uint8Array(await file.arrayBuffer());
-          sevenZip.FS.writeFile(`/in/${file.name}`, buffer);
+          const blob = new Blob([msg.data], { type: "application/x-7z-compressed" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "archive.7z";
+          a.click();
+          URL.revokeObjectURL(url);
+
+          compressBtn.disabled = false;
+          worker.terminate();
+        } else if (msg.type === "error") {
+          status.textContent = "Error: " + msg.message;
+          compressBtn.disabled = false;
+          worker.terminate();
         }
+      };
 
-        status.textContent = "Compressing to .7z...";
-        // 'a' = add, '-t7z' = 7z format, '-mx=5' = normal compression (use -mx=9 for ultra)
-        sevenZip.callMain(["a", "-t7z", "-mx=5", "/out/archive.7z", "/in/*"]);
-
-        // Read result and trigger local browser download
-        const archiveData = sevenZip.FS.readFile("/out/archive.7z");
-        const blob = new Blob([archiveData], { type: "application/x-7z-compressed" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "archive.7z";
-        a.click();
-        URL.revokeObjectURL(url);
-
-        status.textContent = `Done! Compressed ${files.length} file(s) locally.`;
-      } catch (err) {
-        console.error(err);
-        status.textContent = "Compression failed. Check console or try smaller files.";
-      } finally {
-        compressBtn.disabled = false;
-      }
+      worker.postMessage({ files });
     });
   </script>
 </body>
