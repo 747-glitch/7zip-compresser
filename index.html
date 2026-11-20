@@ -236,36 +236,36 @@
   <script>
     function applyTheme(theme) {
       document.documentElement.setAttribute("data-theme", theme);
-      const btn = document.getElementById("themeToggle");
+      var btn = document.getElementById("themeToggle");
       if (btn) btn.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
       try { localStorage.setItem("theme", theme); } catch (e) {}
     }
 
     function toggleTheme() {
-      const current = document.documentElement.getAttribute("data-theme");
+      var current = document.documentElement.getAttribute("data-theme");
       applyTheme(current === "dark" ? "light" : "dark");
     }
 
-    (function initTheme() {
-      let saved = null;
+    (function () {
+      var saved = null;
       try { saved = localStorage.getItem("theme"); } catch (e) {}
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
       applyTheme(saved || (prefersDark ? "dark" : "light"));
     })();
 
     function formatBytes(bytes) {
       if (bytes === 0) return "0 B";
-      const units = ["B", "KB", "MB", "GB"];
-      const i = Math.floor(Math.log(bytes) / Math.log(1024));
-      return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + " " + units[i];
+      var units = ["B", "KB", "MB", "GB"];
+      var i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + " " + units.at(i);
     }
 
     function updateSelectedSize() {
-      const fileInput = document.getElementById("fileInput");
-      const sizeStats = document.getElementById("sizeStats");
-      const files = Array.from(fileInput.files || []);
+      var fileInput = document.getElementById("fileInput");
+      var sizeStats = document.getElementById("sizeStats");
+      var files = Array.from(fileInput.files || []);
       if (files.length) {
-        const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+        var totalBytes = files.reduce(function (sum, f) { return sum + f.size; }, 0);
         sizeStats.style.display = "block";
         sizeStats.innerHTML = "Selected (" + files.length + " file" + (files.length > 1 ? "s" : "") + "): <strong>" + formatBytes(totalBytes) + "</strong>";
       } else {
@@ -273,31 +273,33 @@
       }
     }
 
-    const tick = () => new Promise((r) => setTimeout(r, 30));
+    function tick() {
+      return new Promise(function (r) { setTimeout(r, 30); });
+    }
 
     async function startCompression() {
-      const fileInput = document.getElementById("fileInput");
-      const archiveNameInput = document.getElementById("archiveName");
-      const compressionLevelSelect = document.getElementById("compressionLevel");
-      const compressBtn = document.getElementById("compressBtn");
-      const progressContainer = document.getElementById("progressContainer");
-      const progressBar = document.getElementById("progressBar");
-      const status = document.getElementById("status");
-      const sizeStats = document.getElementById("sizeStats");
+      var fileInput = document.getElementById("fileInput");
+      var archiveNameInput = document.getElementById("archiveName");
+      var compressionLevelSelect = document.getElementById("compressionLevel");
+      var compressBtn = document.getElementById("compressBtn");
+      var progressContainer = document.getElementById("progressContainer");
+      var progressBar = document.getElementById("progressBar");
+      var status = document.getElementById("status");
+      var sizeStats = document.getElementById("sizeStats");
 
-      const files = Array.from(fileInput.files || []);
+      var files = Array.from(fileInput.files || []);
       if (!files.length) {
         status.textContent = "Select at least one file first.";
         return;
       }
 
-      const originalBytes = files.reduce((sum, f) => sum + f.size, 0);
-      let baseName = archiveNameInput.value.trim().replace(/\.7z$/i, "");
+      var originalBytes = files.reduce(function (sum, f) { return sum + f.size; }, 0);
+      var baseName = archiveNameInput.value.trim().replace(/\.7z$/i, "");
       baseName = baseName.replace(/[<>:"/\\|?*]+/g, "_") || "archive";
-      const finalFilename = baseName + ".7z";
-      const level = compressionLevelSelect.value;
+      var finalFilename = baseName + ".7z";
+      var level = compressionLevelSelect.value;
 
-      const startTime = performance.now();
+      var startTime = performance.now();
       compressBtn.disabled = true;
       progressContainer.style.display = "block";
       progressBar.value = 5;
@@ -305,6 +307,6 @@
       await tick();
 
       try {
-        const module = await import("https://jsdelivr.net");
-        const SevenZip = module.default;
+        var mod = await import("https://jsdelivr.net");
+        var SevenZip = mod.default;
 
