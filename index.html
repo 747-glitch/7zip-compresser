@@ -312,7 +312,8 @@
       status.textContent = "Loading 7-Zip WebAssembly engine...";
       await tick();
 
-      try {        var mod = await import("https://jsdelivr.net");
+      try {
+        var mod = await import("https://jsdelivr.net");
         var SevenZip = mod.default;
 
         var sevenZip = await SevenZip({
