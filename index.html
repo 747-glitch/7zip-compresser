@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local .7z Compressor (No Upload)</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #cbd5e1;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --secondary: #e2e8f0;
+      --secondary-hover: #cbd5e1;
+      --drop-bg: #eff6ff;
+    }
+
+    body.dark {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: #334155;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --secondary: #334155;
+      --secondary-hover: #475569;
+      --drop-bg: #172554;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    h1, h2, h3 { margin: 0; }
+    h1 { font-size: 1.4rem; }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      padding: 8px 14px;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+
+    .btn-secondary {
+      background: var(--secondary);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: var(--secondary-hover); }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      margin-top: 16px;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 32px 20px;
+      text-align: center;
+      background: transparent;
+      transition: background 0.15s, border-color 0.15s;
+      margin-bottom: 16px;
+    }
+
+    .dropzone.dragover {
+      border-color: var(--primary);
+      background: var(--drop-bg);
+    }
+
+    .dropzone p { margin: 4px 0; }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .file-list {
+      max-height: 150px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 16px;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    .file-list div {
+      padding: 2px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .filename-group {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .filename-group input {
+      flex: 1;
+      border: none;
+      padding: 10px 12px;
+      font: inherit;
+      background: transparent;
+      color: var(--text);
+      outline: none;
+    }
+
+    .filename-group span {
+      padding: 10px 14px;
+      background: var(--secondary);
+      color: var(--muted);
+      font-weight: 600;
+      border-left: 1px solid var(--border);
+    }
+
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+
+    .progress-wrap {
+      margin-top: 16px;
+      display: none;
+    }
+
+    progress {
+      width: 100%;
+      height: 14px;
+      border-radius: 8px;
+    }
+
+    #statusText {
+      font-size: 0.9rem;
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    .privacy-note {
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-top: 14px;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
+    }
+
+    .breakdown h3 { font-size: 1.05rem; margin-bottom: 10px; }
+    .breakdown ul { padding-left: 20px; margin: 0; font-size: 0.92rem; color: var(--muted); }
+    .breakdown li { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Compress to .7z</h1>
+      <button type="button" id="darkModeBtn" class="btn-secondary">Dark Mode</button>
+    </div>
+
+    <div id="dropzone" class="dropzone">
+      <p><strong>Drag &amp; drop files or folders here</strong></p>
+      <p class="muted">Nested folder structures are preserved inside the .7z archive</p>
+      <div class="button-row">
+        <button type="button" id="selectFilesBtn" class="btn-secondary">Select Files</button>
+        <button type="button" id="selectFolderBtn" class="btn-secondary">Select Folder</button>
+        <button type="button" id="clearBtn" class="btn-secondary">Clear</button>
+      </div>
+      <input type="file" id="fileInput" multiple hidden />
+      <input type="file" id="folderInput" webkitdirectory directory multiple hidden />
+    </div>
+
+    <div id="fileList" class="file-list"></div>
+
+    <div class="field">
+      <label for="archiveNameInput">Archive Filename</label>
+      <div class="filename-group">
+        <input type="text" id="archiveNameInput" value="archive" placeholder="archive" />
+        <span>.7z</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="compressionLevel">Compression Level</label>
+      <select id="compressionLevel">
+        <option value="0">0 - Store (No compression, fastest)</option>
+        <option value="1">1 - Fastest</option>
+        <option value="3">3 - Fast</option>
+        <option value="5" selected>5 - Normal (Recommended)</option>
+        <option value="7">7 - Maximum</option>
+        <option value="9">9 - Ultra (Smallest size, slowest)</option>
+      </select>
+    </div>
+
+    <button type="button" id="compressBtn" class="btn-primary">Compress to .7z</button>
+
+    <div id="progressWrap" class="progress-wrap">
+      <progress id="progressBar" value="0" max="100"></progress>
+      <div id="statusText">Ready</div>
+    </div>
+
+    <p class="privacy-note">Files stay on your device. Nothing is uploaded.</p>
+
+    <hr />
+
+    <div class="breakdown">
+      <h3>How the Progress Bar Breakdown Works</h3>
+      <ul>
+        <li><strong>0% &ndash; 5%:</strong> Initializes the engine and fetches the 7zz.wasm binary.</li>
+        <li><strong>5% &ndash; 20%:</strong> Recreates nested folders and reads files into virtual WebAssembly memory.</li>
+        <li><strong>20% &ndash; 98%:</strong> Passes the <code>-bsp1</code> flag to 7-Zip so it tracks completion progress and updates the <code>&lt;progress&gt;</code> bar.</li>
+        <li><strong>100%:</strong> Triggers the local browser download of your .7z file and frees memory.</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module">
+    import SevenZip from 'https://cdn.jsdelivr.net/npm/7z-wasm@1.1.0/+esm';
+
+    const darkModeBtn = document.getElementById('darkModeBtn');
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const folderInput = document.getElementById('folderInput');
+    const selectFilesBtn = document.getElementById('selectFilesBtn');
+    const selectFolderBtn = document.getElementById('selectFolderBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const fileListEl = document.getElementById('fileList');
+    const archiveNameInput = document.getElementById('archiveNameInput');
+    const compressionLevel = document.getElementById('compressionLevel');
+    const compressBtn = document.getElementById('compressBtn');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('statusText');
+
+    // Store items as { file: File, path: string }
+    let selectedItems = [];
+    let userEditedName = false;
+
+    darkModeBtn.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+    });
+
+    archiveNameInput.addEventListener('input', () => {
+      userEditedName = archiveNameInput.value.trim() !== '' && archiveNameInput.value !== 'archive';
+    });
+
+    selectFilesBtn.addEventListener('click', () => fileInput.click());
+    selectFolderBtn.addEventListener('click', () => folderInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      addFileList(e.target.files);
+      fileInput.value = '';
+    });
+
+    folderInput.addEventListener('change', (e) => {
+      addFileList(e.target.files);
+      folderInput.value = '';
+    });
+
+    clearBtn.addEventListener('click', () => {
+      selectedItems = [];
+      userEditedName = false;
+      archiveNameInput.value = 'archive';
+      renderFileList();
+      progressWrap.style.display = 'none';
+    });
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+
+      const items = e.dataTransfer.items;
+      if (items && items.length > 0 && items[0].webkitGetAsEntry) {
+        const entries = [];
+        for (const item of items) {
+          const entry = item.webkitGetAsEntry();
+          if (entry) entries.push(entry);
+        }
+        const collected = [];
+        for (const entry of entries) {
+          await traverseFileTree(entry, '', collected);
+        }
+        addNormalizedItems(collected);
+      } else if (e.dataTransfer.files) {
+        addFileList(e.dataTransfer.files);
+      }
+    });
+
+    function traverseFileTree(entry, path, collected) {
+      return new Promise((resolve) => {
+        if (entry.isFile) {
+          entry.file((file) => {
+            const relPath = path ? `${path}/${file.name}` : file.name;
+            collected.push({ file, path: relPath });
+            resolve();
+          });
+        } else if (entry.isDirectory) {
+          const dirReader = entry.createReader();
+          const newPath = path ? `${path}/${entry.name}` : entry.name;
+          const readEntries = () => {
+            dirReader.readEntries(async (entries) => {
+              if (!entries.length) {
+                resolve();
+              } else {
+                for (const subEntry of entries) {
+                  await traverseFileTree(subEntry, newPath, collected);
+                }
+                readEntries();
+              }
+            });
+          };
+          readEntries();
+        } else {
+          resolve();
+        }
+      });
+    }
+
+    function addFileList(files) {
+      const normalized = [];
+      for (const file of files) {
+        const relPath = file.webkitRelativePath && file.webkitRelativePath.length > 0
+          ? file.webkitRelativePath
+          : file.name;
+        normalized.push({ file, path: relPath });
+      }
+      addNormalizedItems(normalized);
+    }
+
+    function addNormalizedItems(newItems) {
+      if (!newItems.length) return;
+      selectedItems.push(...newItems);
+      renderFileList();
+
+      if (!userEditedName) {
+        archiveNameInput.value = getDefaultArchiveName(selectedItems);
+      }
+    }
+
+    function getDefaultArchiveName(items) {
+      if (!items || items.length === 0) return 'archive';
+
+      // Check if items are inside a root folder
+      const firstPath = items[0].path;
+      if (firstPath && firstPath.includes('/')) {
+        const rootFolder = firstPath.split('/')[0];
+        const allShareRoot = items.every(item => item.path.startsWith(rootFolder + '/'));
+        if (allShareRoot) {
+          return rootFolder;
+        }
+      }
+
+      // Single file uploaded: strip extension
+      if (items.length === 1) {
+        const fileName = items[0].file.name;
+        const lastDotIndex = fileName.lastIndexOf('.');
+        return lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
+      }
+
+      // Multiple loose files uploaded
+      const firstFileName = items[0].file.name;
+      const lastDotIndex = firstFileName.lastIndexOf('.');
+      const baseName = lastDotIndex > 0 ? firstFileName.substring(0, lastDotIndex) : firstFileName;
+      return `${baseName}-bundle`;
+    }
+
+    function renderFileList() {
+      if (!selectedItems.length) {
+        fileListEl.style.display = 'none';
+        fileListEl.innerHTML = '';
+        return;
+      }
+      fileListEl.style.display = 'block';
+      fileListEl.innerHTML = selectedItems
+        .map(item => `<div>${escapeHtml(item.path)}</div>`)
+        .join('');
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function ensureDir(FS, dirPath) {
+      const parts = dirPath.split('/').filter(Boolean);
+      let current = '';
+      for (const part of parts) {
+        current += '/' + part;
+        try {
+          FS.mkdir(current);
+        } catch (e) {
+          // Directory already exists
+        }
+      }
+    }
+
+    compressBtn.addEventListener('click', async () => {
+      if (!selectedItems.length) {
+        alert('Please select or drop at least one file or folder.');
+        return;
+      }
+
+      compressBtn.disabled = true;
+      progressWrap.style.display = 'block';
+      progressBar.value = 2;
+      statusText.textContent = 'Initializing 7-Zip engine (0% - 5%)...';
+
+      try {
+        const sevenZip = await SevenZip({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/7z-wasm@1.1.0/${file}`,
+          print: (line) => {
+            const match = line.match(/(\d+)%/);
+            if (match) {
+              const pct = parseInt(match[1], 10);
+              const scaled = 20 + Math.round((pct / 100) * 78);
+              progressBar.value = scaled;
+              statusText.textContent = `Compressing... ${pct}%`;
+            }
+          }
+        });
+
+        progressBar.value = 5;
+        statusText.textContent = 'Reading files into virtual memory (5% - 20%)...';
+
+        const workDir = '/work';
+        ensureDir(sevenZip.FS, workDir);
+
+        const topLevelTargets = new Set();
+
+        for (let i = 0; i < selectedItems.length; i++) {
+          const { file, path } = selectedItems[i];
+          const cleanPath = path.replace(/^\/+/, '');
+          const fullPath = `${workDir}/${cleanPath}`;
+          const lastSlash = fullPath.lastIndexOf('/');
+          if (lastSlash > 0) {
+            ensureDir(sevenZip.FS, fullPath.substring(0, lastSlash));
+          }
+
+          const buffer = await file.arrayBuffer();
+          sevenZip.FS.writeFile(fullPath, new Uint8Array(buffer));
+
+          const topEntry = cleanPath.split('/')[0];
+          topLevelTargets.add(`${workDir}/${topEntry}`);
+
+          const memPct = 5 + Math.round(((i + 1) / selectedItems.length) * 15);
+          progressBar.value = memPct;
+        }
+
+        const rawName = archiveNameInput.value.trim() || 'archive';
+        const safeBaseName = rawName.replace(/\.7z$/i, '');
+        const archiveFileName = `${safeBaseName}.7z`;
+        const outputVirtualPath = `/${archiveFileName}`;
+        const level = compressionLevel.value;
+
+        progressBar.value = 20;
+        statusText.textContent = 'Compressing files (20% - 98%)...';
+
+        // Allow UI paint before synchronous WASM execution
+        await new Promise(r => setTimeout(r, 30));
+
+        sevenZip.callMain([
+          'a',
+          `-mx=${level}`,
+          '-bsp1',
+          outputVirtualPath,
+          ...Array.from(topLevelTargets)
+        ]);
+
+        progressBar.value = 99;
+        statusText.textContent = 'Preparing download...';
+
+        const compressedData = sevenZip.FS.readFile(outputVirtualPath);
+        const blob = new Blob([compressedData], { type: 'application/x-7z-compressed' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = archiveFileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+        progressBar.value = 100;
+        statusText.textContent = `Done! Downloaded ${archiveFileName} (100%)`;
+      } catch (err) {
+        console.error(err);
+        statusText.textContent = `Error: ${err.message || 'Compression failed.'}`;
+      } finally {
+        compressBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
