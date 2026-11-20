@@ -165,15 +165,8 @@
       font-size: 0.82rem;
     }
 
-    .badge-saved {
-      background: var(--badge-green-bg);
-      color: var(--badge-green-text);
-    }
-
-    .badge-neutral {
-      background: var(--badge-gray-bg);
-      color: var(--badge-gray-text);
-    }
+    .badge-saved { background: var(--badge-green-bg); color: var(--badge-green-text); }
+    .badge-neutral { background: var(--badge-gray-bg); color: var(--badge-gray-text); }
 
     .breakdown {
       margin-top: 2.5rem;
@@ -193,11 +186,11 @@
 <body>
   <div class="header">
     <h2>Compress to .7z</h2>
-    <button id="themeToggle" type="button">Dark Mode</button>
+    <button id="themeToggle" type="button" onclick="toggleTheme()">Dark Mode</button>
   </div>
 
   <div class="box">
-    <input type="file" id="fileInput" multiple />
+    <input type="file" id="fileInput" multiple onchange="updateSelectedSize()" />
 
     <div class="controls">
       <div class="control-row">
@@ -221,7 +214,7 @@
       </div>
     </div>
 
-    <button id="compressBtn" type="button">Compress to .7z</button>
+    <button id="compressBtn" type="button" onclick="startCompression()">Compress to .7z</button>
 
     <div id="progressContainer">
       <progress id="progressBar" value="0" max="100"></progress>
@@ -241,33 +234,48 @@
   </div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      // 1. Dark Mode Toggle
-      const themeToggle = document.getElementById("themeToggle");
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      const btn = document.getElementById("themeToggle");
+      if (btn) btn.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+      try { localStorage.setItem("theme", theme); } catch (e) {}
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme");
+      applyTheme(current === "dark" ? "light" : "dark");
+    }
+
+    (function initTheme() {
+      let saved = null;
+      try { saved = localStorage.getItem("theme"); } catch (e) {}
       const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const savedTheme = localStorage.getItem("theme") || (prefersDark ? "dark" : "light");
+      applyTheme(saved || (prefersDark ? "dark" : "light"));
+    })();
 
-      function applyTheme(theme) {
-        document.documentElement.setAttribute("data-theme", theme);
-        themeToggle.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
-        try { localStorage.setItem("theme", theme); } catch (e) {}
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + " " + units[i];
+    }
+
+    function updateSelectedSize() {
+      const fileInput = document.getElementById("fileInput");
+      const sizeStats = document.getElementById("sizeStats");
+      const files = Array.from(fileInput.files || []);
+      if (files.length) {
+        const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+        sizeStats.style.display = "block";
+        sizeStats.innerHTML = "Selected (" + files.length + " file" + (files.length > 1 ? "s" : "") + "): <strong>" + formatBytes(totalBytes) + "</strong>";
+      } else {
+        sizeStats.style.display = "none";
       }
-      applyTheme(savedTheme);
+    }
 
-      themeToggle.addEventListener("click", () => {
-        const current = document.documentElement.getAttribute("data-theme");
-        applyTheme(current === "dark" ? "light" : "dark");
-      });
+    const tick = () => new Promise((r) => setTimeout(r, 30));
 
-      // 2. Helper to format bytes
-      function formatBytes(bytes) {
-        if (bytes === 0) return "0 B";
-        const units = ["B", "KB", "MB", "GB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(1024));
-        return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + " " + units[i];
-      }
-
-      // 3. Elements
+    async function startCompression() {
       const fileInput = document.getElementById("fileInput");
       const archiveNameInput = document.getElementById("archiveName");
       const compressionLevelSelect = document.getElementById("compressionLevel");
@@ -277,39 +285,26 @@
       const status = document.getElementById("status");
       const sizeStats = document.getElementById("sizeStats");
 
-      fileInput.addEventListener("change", () => {
-        const files = Array.from(fileInput.files);
-        if (files.length) {
-          const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
-          sizeStats.style.display = "block";
-          sizeStats.innerHTML = `Selected (${files.length} file${files.length > 1 ? "s" : ""}): <strong>${formatBytes(totalBytes)}</strong>`;
-        } else {
-          sizeStats.style.display = "none";
-        }
-      });
+      const files = Array.from(fileInput.files || []);
+      if (!files.length) {
+        status.textContent = "Select at least one file first.";
+        return;
+      }
 
-      // Pause briefly so browser repaints progress bar before heavy WASM work
-      const tick = () => new Promise((r) => setTimeout(r, 30));
+      const originalBytes = files.reduce((sum, f) => sum + f.size, 0);
+      let baseName = archiveNameInput.value.trim().replace(/\.7z$/i, "");
+      baseName = baseName.replace(/[<>:"/\\|?*]+/g, "_") || "archive";
+      const finalFilename = baseName + ".7z";
+      const level = compressionLevelSelect.value;
 
-      // 4. Compress Button Click
-      compressBtn.addEventListener("click", async () => {
-        const files = Array.from(fileInput.files);
-        if (!files.length) {
-          status.textContent = "Select at least one file first.";
-          return;
-        }
+      const startTime = performance.now();
+      compressBtn.disabled = true;
+      progressContainer.style.display = "block";
+      progressBar.value = 5;
+      status.textContent = "Loading 7-Zip WebAssembly engine...";
+      await tick();
 
-        const originalBytes = files.reduce((sum, f) => sum + f.size, 0);
-        let baseName = archiveNameInput.value.trim().replace(/\.7z$/i, "");
-        baseName = baseName.replace(/[<>:"/\\|?*]+/g, "_") || "archive";
-        const finalFilename = baseName + ".7z";
-        const level = compressionLevelSelect.value;
+      try {
+        const module = await import("https://jsdelivr.net");
+        const SevenZip = module.default;
 
-        const startTime = performance.now();
-        compressBtn.disabled = true;
-        progressContainer.style.display = "block";
-        progressBar.value = 5;
-        status.textContent = "Loading 7-Zip WebAssembly engine...";
-        await tick();
-
-        try {
